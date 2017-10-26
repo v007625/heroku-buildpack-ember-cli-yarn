@@ -1,0 +1,266 @@
+#!/usr/bin/env bash
+
+set -e            # fail fast
+set -o pipefail   # don't ignore exit codes when piping output
+# set -x            # enable debugging
+
+build_dir=$1
+cache_dir=$2
+env_dir=$3
+bp_dir=$(cd $(dirname $0); cd ..; pwd)
+
+# Fix leak
+unset GIT_DIR
+# Load some convenience functions like status(), echo(), and indent()
+source $bp_dir/bin/common.sh
+
+status "Exporting config vars to environment"
+export_env_dir $env_dir
+
+if [ "$BUILD_DEBUG" == "true" ]; then
+  status "Enable debugging"
+  set -x
+fi
+
+build_env=${EMBER_ENV:-production}
+status "Building environment: $build_env"
+
+mkdir -p $build_dir/vendor
+
+# Look in package.json's engines.node and engines.yarn fields for a semver range
+semver_range_node=$($bp_dir/vendor/jq -r .engines.node $build_dir/package.json)
+semver_range_yarn=$($bp_dir/vendor/jq -r .engines.yarn $build_dir/package.json)
+
+# Resolve node and yarn versions using semver.io
+node_version=$(curl ${CURL_OPT} --silent --get --data-urlencode "range=${semver_range_node}" https://semver.io/node/resolve)
+yarn_version=$(curl ${CURL_OPT} --silent --get --data-urlencode "range=${semver_range_yarn}" https://semver.io/yarn/resolve)
+
+# Recommend using semver ranges in a safe manner
+if [ "$semver_range_node" == "null" ]; then
+  protip "Specify a node version in package.json"
+  semver_range_node=""
+elif [ "$semver_range_node" == "*" ]; then
+  protip "Avoid using semver ranges like '*' in engines.node"
+elif [ ${semver_range_node:0:1} == ">" ]; then
+  protip "Avoid using semver ranges starting with '>' in engines.node"
+fi
+
+if [ "$semver_range_yarn" == "null" ]; then
+  protip "Specify a yarn version in package.json"
+  semver_range_yarn=""
+elif [ "$semver_range_yarn" == "*" ]; then
+  protip "Avoid using semver ranges like '*' in engines.yarn"
+elif [ ${semver_range_yarn:0:1} == ">" ]; then
+  protip "Avoid using semver ranges starting with '>' in engines.yarn"
+fi
+
+# Output info about requested range and resolved node and yarn versions
+if [ "$semver_range_node" == "" ]; then
+  status "Defaulting to latest stable node: $node_version"
+else
+  status "Requested node range:  $semver_range_node"
+  status "Resolved node version: $node_version"
+fi
+
+if [ "$semver_range_yarn" == "" ]; then
+  status "Defaulting to latest stable yarn: $yarn_version"
+else
+  status "Requested yarn range:  $semver_range_yarn"
+  status "Resolved yarn version: $yarn_version"
+fi
+
+# Download node from Heroku's S3 mirror of nodejs.org/dist
+status "Downloading and installing node"
+if [[ -n ${HEROKU_MIRROR:-} ]]; then
+  node_url="${HEROKU_MIRROR}/node/v$node_version/node-v$node_version-linux-x64.tar.gz"
+
+  if [[ -n ${NO_PROXY:-} ]]; then
+    echo 'no_proxy'
+    echo $node_url
+    http_proxy= https_proxy= curl $node_url -s -o - | tar xzf - -C $build_dir
+  else
+    curl $node_url -s -o - | tar xzf - -C $build_dir
+  fi
+else
+  node_url="http://s3pository.heroku.com/node/v$node_version/node-v$node_version-linux-x64.tar.gz"
+
+  curl $node_url -s -o - | tar xzf - -C $build_dir
+fi
+
+# Download and install yarn
+curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version $yarn_version
+export PATH="$PATH:`yarn global bin`"
+
+# Move node into ./vendor and make them executable
+mkdir -p $build_dir/vendor
+mv $build_dir/node-v$node_version-linux-x64 $build_dir/vendor/node
+chmod +x $build_dir/vendor/node/bin/*
+PATH=$build_dir/vendor/node/bin:$PATH
+
+status "Downloading and installing nginx"
+if [[ -n ${AWS_MIRROR:-} ]]; then
+  nginx_url="${AWS_MIRROR}/devmynd-github/heroku-nginx-1.6.0.tar.gz"
+
+  if [[ -n ${NO_PROXY:-} ]]; then
+    echo 'no_proxy'
+    echo $nginx_url
+    http_proxy= https_proxy= curl ${CURL_OPT} $nginx_url -o - | tar xzf - -C $build_dir/vendor
+  else
+    curl ${CURL_OPT} $nginx_url -s -o - | tar xzf - -C $build_dir/vendor
+  fi
+else
+  nginx_url=https://s3.amazonaws.com/devmynd-github/heroku-nginx-1.6.0.tar.gz
+
+  curl ${CURL_OPT} $nginx_url -s -o - | tar xzf - -C $build_dir/vendor
+fi
+
+
+status "Adding boot script"
+cp $bp_dir/bin/boot.sh $build_dir
+
+status "Copying configs"
+mkdir -p $build_dir/config
+cp $bp_dir/config/htpasswd.rb $build_dir/config
+cp $bp_dir/config/mime.types $build_dir/config
+
+if [[ ! -f $build_dir/config/nginx.conf.erb ]]; then
+  cp $bp_dir/config/nginx.conf.erb $build_dir/config
+else
+  status "Custom nginx config found"
+fi
+
+cd $build_dir
+
+if [ "$REBUILD_ALL" == "true" ] || [ "$REBUILD_NODE_PACKAGES" == "true" ]; then
+  status "Forcing rebuild of all node_modules. Pruning all node_modules."
+  rm -rf $build_dir/node_modules $cache_dir/node_modules
+fi
+
+if [ "$REBUILD_ALL" == "true" ] || [ "$REBUILD_BOWER_PACKAGES" == "true" ]; then
+  status "Forcing re-installation of all bower_components. Pruning all bower_components."
+  rm -rf $build_dir/bower_components $cache_dir/bower_components
+fi
+
+# If node_modules directory is checked into source control then
+# rebuild any native deps. Otherwise, restore from the build cache.
+if test -d $build_dir/node_modules; then
+  status "Found existing node_modules directory; skipping cache"
+  status "Rebuilding any native dependencies"
+  	yarn install --force 2>&1 | indent
+else
+  if test -d $cache_dir/node_modules; then
+    status "Restoring node_modules directory from cache"
+  else
+    status "Creating node_modules cache directory"
+    mkdir -p $cache_dir/node_modules
+  fi
+
+  ln -s $cache_dir/node_modules $build_dir/node_modules
+
+  if test -f $cache_dir/.heroku/node-version && [ $(cat $cache_dir/.heroku/node-version) != "$node_version" ]; then
+    status "Node version changed since last build; rebuilding dependencies"
+    	yarn install --force 2>&1 | indent
+  fi
+fi
+
+# Restore bower_components from cache if it exists
+if test -d $build_dir/bower_components; then
+  status "Found existing bower_components directory; skipping cache"
+else
+  if test -d $cache_dir/bower_components; then
+    status "Restoring bower_components directory from cache"
+  else
+    status "Creating bower_components cache directory"
+    mkdir -p $cache_dir/bower_components
+  fi
+
+  ln -s $cache_dir/bower_components $build_dir/bower_components
+fi
+
+status "Pruning all cached dependencies"
+yarn cache clean --force 2>&1 | indent
+
+if test -e $build_dir/node_modules/bower/bin/bower; then
+  status "Bower already exists"
+else
+  status "Installing bower which is required by other dependencies"
+  if [[ -f "$build_dir/.npmrc" ]]; then
+    status ".npmrc exists"
+    cat "$build_dir/.npmrc"
+    yarn install bower@1.8.2 --save-dev --quiet --no-optional --userconfig $build_dir/.npmrc 2>&1 | indent
+  else
+    status "no .npmrc"
+    http_proxy= yarn install bower@1.8.2 --save-dev --quiet --no-optional 2>&1 | indent
+  fi
+fi
+
+PATH=$build_dir/node_modules/bower/bin:$PATH
+
+if [ "$GIT_SSH_KEY" != "" ]; then
+  status "Detected SSH key for git.  launching ssh-agent and loading key"
+  echo $GIT_SSH_KEY | base64 --decode > id_rsa
+  # launch ssh-agent, we'll use it to serve our ssh key
+  # and kill it towards the end of the buildpack's run
+  eval `ssh-agent -s`
+  # ssh-add doesn't like the default 644
+  chmod 600 id_rsa
+  # We're not supporting passphrases at this time.  We could pull that in
+  # from config as well, but then we'd have to setup expect or some other
+  # terminal automation tool to feed it into ssh-add.
+  ssh-add id_rsa
+  rm id_rsa
+  # Add github to the list of known hosts - ignore the warning or else set -e will abort the deployment
+  ssh -oStrictHostKeyChecking=no -T git@github.com || true
+fi
+
+status "Pruning cached bower dependencies not specified in bower.json"
+bower prune 2>&1 | indent
+
+status "Installing dependencies"
+# Make yarn output to STDOUT instead of its default STDERR
+if [[ -f "$build_dir/.npmrc" ]]; then
+  status ".npmrc exists"
+  yarn install --silent --userconfig --no-optional $build_dir/.npmrc 2>&1 | indent
+else
+  status "no .npmrc"
+  http_proxy= yarn install --silent --no-optional 2>&1 | indent
+fi
+
+bower install --quiet | indent
+
+# Add the project's and ember-cli's dependencies' binaries to the PATH
+PATH=$build_dir/node_modules/.bin:$build_dir/node_modules/ember-cli/node_modules/.bin:$PATH
+
+# Persist goodies like node-version in the slug
+mkdir -p $build_dir/.heroku
+# Save resolved node version in the slug for later reference
+echo $node_version > $build_dir/.heroku/node-version
+# Copy goodies to the cache
+cp -r $build_dir/.heroku $cache_dir/
+
+status "Cleaning up node-gyp, npm and yarn artifacts"
+rm -rf "$build_dir/.node-gyp"
+rm -rf "$build_dir/.yarn"
+rm -rf "$build_dir/.npm"
+
+if [ "$GIT_SSH_KEY" != "" ]; then
+  # Now that npm & bower have finished running, we should not need the ssh key anymore.  Kill ssh-agent
+  eval `ssh-agent -k`
+  # Clear that sensitive key data from the environment
+  export GIT_SSH_KEY=0
+fi
+
+if test -f $build_dir/hooks/before_hook.sh; then
+  status "Before hook detected. Running..."
+  source $build_dir/hooks/before_hook.sh
+fi
+
+status "Building Ember CLI application $build_env distribution"
+status "Ember Version = "
+$build_dir/node_modules/ember-cli/bin/ember -v
+$build_dir/node_modules/ember-cli/bin/ember build --environment $build_env | indent
+
+if test -f $build_dir/hooks/after_hook.sh; then
+  status "After hook detected. Running..."
+  source $build_dir/hooks/after_hook.sh
+fi
