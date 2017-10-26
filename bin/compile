@@ -74,9 +74,10 @@ status "Downloading and installing node"
 if [[ -n ${HEROKU_MIRROR:-} ]]; then
   node_url="${HEROKU_MIRROR}/node/v$node_version/node-v$node_version-linux-x64.tar.gz"
 
+  echo $node_url
+
   if [[ -n ${NO_PROXY:-} ]]; then
     echo 'no_proxy'
-    echo $node_url
     http_proxy= https_proxy= curl $node_url -s -o - | tar xzf - -C $build_dir
   else
     curl $node_url -s -o - | tar xzf - -C $build_dir
@@ -84,15 +85,18 @@ if [[ -n ${HEROKU_MIRROR:-} ]]; then
 else
   node_url="http://s3pository.heroku.com/node/v$node_version/node-v$node_version-linux-x64.tar.gz"
 
+  echo $node_url
+
   curl $node_url -s -o - | tar xzf - -C $build_dir
 fi
 
 # Download and install yarn
 yarn_url="https://yarnpkg.com/$yarn_version.tar.gz"
 
+echo $yarn_url
+
 if [[ -n ${NO_PROXY:-} ]]; then
   echo 'no_proxy'
-  echo $yarn_url
   http_proxy= https_proxy= curl $yarn_url -s -o - | tar xzf - -C $build_dir
 else
   curl $yarn_url -s -o - | tar xzf - -C $build_dir
