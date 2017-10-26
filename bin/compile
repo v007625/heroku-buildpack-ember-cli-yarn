@@ -88,14 +88,24 @@ else
 fi
 
 # Download and install yarn
-curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version $yarn_version
-export PATH="$PATH:`yarn global bin`"
+yarn_url="https://yarnpkg.com/$yarn_version.tar.gz"
 
-# Move node into ./vendor and make them executable
+if [[ -n ${NO_PROXY:-} ]]; then
+  echo 'no_proxy'
+  echo $yarn_url
+  http_proxy= https_proxy= curl $yarn_url -s -o - | tar xzf - -C $build_dir
+else
+  curl $yarn_url -s -o - | tar xzf - -C $build_dir
+fi
+
+# Move node and yarn into ./vendor and make them executable
 mkdir -p $build_dir/vendor
 mv $build_dir/node-v$node_version-linux-x64 $build_dir/vendor/node
+mv $build_dir/yarn-v$yarn_version $build_dir/vendor/yarn
 chmod +x $build_dir/vendor/node/bin/*
+chmod +x $build_dir/vendor/yarn/bin/*
 PATH=$build_dir/vendor/node/bin:$PATH
+PATH=$build_dir/vendor/yarn/bin:$PATH
 
 status "Downloading and installing nginx"
 if [[ -n ${AWS_MIRROR:-} ]]; then
