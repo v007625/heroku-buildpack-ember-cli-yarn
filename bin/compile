@@ -91,7 +91,7 @@ else
 fi
 
 # Download and install yarn
-yarn_url="https://yarnpkg.com/$yarn_version.tar.gz"
+yarn_url="https://github.com/yarnpkg/yarn/releases/download/v$yarn_version/yarn-v$yarn_version.tar.gz"
 
 echo $yarn_url
 
