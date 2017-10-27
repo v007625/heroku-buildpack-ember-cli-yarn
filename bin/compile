@@ -252,10 +252,9 @@ echo $node_version > $build_dir/.heroku/node-version
 # Copy goodies to the cache
 cp -r $build_dir/.heroku $cache_dir/
 
-status "Cleaning up node-gyp, npm and yarn artifacts"
+status "Cleaning up node-gyp and yarn artifacts"
 rm -rf "$build_dir/.node-gyp"
 rm -rf "$build_dir/.yarn"
-rm -rf "$build_dir/.npm"
 
 if [ "$GIT_SSH_KEY" != "" ]; then
   # Now that npm & bower have finished running, we should not need the ssh key anymore.  Kill ssh-agent
