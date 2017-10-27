@@ -91,15 +91,15 @@ else
 fi
 
 # Download and install yarn
-yarn_url="http://github.com/yarnpkg/yarn/releases/download/v$yarn_version/yarn-v$yarn_version.tar.gz"
+yarn_url="https://github.com/yarnpkg/yarn/releases/download/v$yarn_version/yarn-v$yarn_version.tar.gz"
 
 echo $yarn_url
 
 if [[ -n ${NO_PROXY:-} ]]; then
   echo 'no_proxy'
-  http_proxy= https_proxy= curl $yarn_url -s -o - | tar zvxf - -C $build_dir
+  http_proxy= https_proxy= curl $yarn_url -s -L -o - | tar zvxf - -C $build_dir
 else
-  curl $yarn_url -s -o - | tar zvxf - -C $build_dir
+  curl $yarn_url -s -L -o - | tar zvxf - -C $build_dir
 fi
 
 # Move node and yarn into ./vendor and make them executable
