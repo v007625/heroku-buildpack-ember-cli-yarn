@@ -240,7 +240,10 @@ else
   http_proxy= yarn install --silent --no-optional 2>&1 | indent
 fi
 
-bower install --quiet | indent
+if [[ -f "$build_dir/bower.json" ]]; then
+  status "bower.json exists"
+  bower install --quiet | indent
+fi
 
 # Add the project's and ember-cli's dependencies' binaries to the PATH
 PATH=$build_dir/node_modules/.bin:$build_dir/node_modules/ember-cli/node_modules/.bin:$PATH
