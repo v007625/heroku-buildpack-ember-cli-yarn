@@ -181,17 +181,19 @@ else
 fi
 
 # Restore bower_components from cache if it exists
-if test -d $build_dir/bower_components; then
-  status "Found existing bower_components directory; skipping cache"
-else
-  if test -d $cache_dir/bower_components; then
-    status "Restoring bower_components directory from cache"
+if [[ -f "$build_dir/bower.json" ]]; then
+  if test -d $build_dir/bower_components; then
+    status "Found existing bower_components directory; skipping cache"
   else
-    status "Creating bower_components cache directory"
-    mkdir -p $cache_dir/bower_components
-  fi
+    if test -d $cache_dir/bower_components; then
+      status "Restoring bower_components directory from cache"
+    else
+      status "Creating bower_components cache directory"
+      mkdir -p $cache_dir/bower_components
+    fi
 
-  ln -s $cache_dir/bower_components $build_dir/bower_components
+    ln -s $cache_dir/bower_components $build_dir/bower_components
+  fi
 fi
 
 status "Pruning all cached dependencies"
@@ -200,14 +202,16 @@ yarn cache clean --force 2>&1 | indent
 if test -e $build_dir/node_modules/bower/bin/bower; then
   status "Bower already exists"
 else
-  status "Installing bower which is required by other dependencies"
-  if [[ -f "$build_dir/.npmrc" ]]; then
-    status ".npmrc exists"
-    cat "$build_dir/.npmrc"
-    yarn add bower@1.8.2 --save-dev --quiet --no-optional --userconfig $build_dir/.npmrc 2>&1 | indent
-  else
-    status "no .npmrc"
-    yarn add bower@1.8.2 --save-dev --no-optional 2>&1 | indent
+  if [[ -f "$build_dir/bower.json" ]]; then
+    status "Installing bower which is required by other dependencies"
+    if [[ -f "$build_dir/.npmrc" ]]; then
+      status ".npmrc exists"
+      cat "$build_dir/.npmrc"
+      yarn add bower@1.8.2 --save-dev --quiet --no-optional --userconfig $build_dir/.npmrc 2>&1 | indent
+    else
+      status "no .npmrc"
+      yarn add bower@1.8.2 --save-dev --no-optional 2>&1 | indent
+    fi
   fi
 fi
 
@@ -230,8 +234,10 @@ if [ "$GIT_SSH_KEY" != "" ]; then
   ssh -oStrictHostKeyChecking=no -T git@github.com || true
 fi
 
-status "Pruning cached bower dependencies not specified in bower.json"
-bower prune 2>&1 | indent
+if [[ -f "$build_dir/bower.json" ]]; then
+  status "Pruning cached bower dependencies not specified in bower.json"
+  bower prune 2>&1 | indent
+fi
 
 status "Installing dependencies"
 # Make yarn output to STDOUT instead of its default STDERR
