@@ -215,7 +215,7 @@ else
   fi
 fi
 
-PATH=$build_dir/node_modules/bower/bin:$PATH
+PATH=$build_dir/node_modules/bower/bin/bower:$PATH
 
 if [ "$GIT_SSH_KEY" != "" ]; then
   status "Detected SSH key for git.  launching ssh-agent and loading key"
