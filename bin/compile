@@ -215,7 +215,7 @@ else
   fi
 fi
 
-ls -la $build_dir/node_modules
+ls -la $cache_dir/node_modules
 
 PATH=$build_dir/node_modules/bower/bin/bower:$PATH
 
