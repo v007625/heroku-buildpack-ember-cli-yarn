@@ -207,10 +207,10 @@ else
     if [[ -f "$build_dir/.npmrc" ]]; then
       status ".npmrc exists"
       cat "$build_dir/.npmrc"
-      yarn global add bower@1.8.8 --save-dev --quiet --no-optional --userconfig $build_dir/.npmrc 2>&1 | indent
+      yarn add bower@1.8.8 --save-dev --quiet --no-optional --userconfig $build_dir/.npmrc 2>&1 | indent
     else
       status "no .npmrc"
-      yarn global add bower@1.8.8 --save-dev --no-optional 2>&1 | indent
+      yarn add bower@1.8.8 --save-dev --no-optional 2>&1 | indent
     fi
   fi
 fi
