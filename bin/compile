@@ -236,7 +236,7 @@ fi
 
 if [[ -f "$build_dir/bower.json" ]]; then
   status "Pruning cached bower dependencies not specified in bower.json"
-  bower prune 2>&1 | indent
+  $build_dir/node_modules/bower/bin/bower prune 2>&1 | indent
 fi
 
 status "Installing dependencies"
@@ -251,7 +251,7 @@ fi
 
 if [[ -f "$build_dir/bower.json" ]]; then
   status "bower.json exists"
-  bower install --quiet | indent
+  $build_dir/node_modules/bower/bin/bower install --quiet | indent
 fi
 
 # Add the project's and ember-cli's dependencies' binaries to the PATH
