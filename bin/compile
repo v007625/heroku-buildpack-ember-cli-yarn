@@ -216,7 +216,7 @@ else
 fi
 
 yarn global bin
-yarn_executable_directory = yarn global bin
+yarn_executable_directory=yarn global bin
 
 PATH=$yarn_executable_directory:$PATH
 PATH=$build_dir/node_modules/bower/bin/bower:$PATH
