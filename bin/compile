@@ -219,7 +219,7 @@ yarn global bin
 yarn_executable_directory=$(yarn global bin)
 
 PATH=$yarn_executable_directory:$PATH
-PATH=$build_dir/node_modules/bower/bin/bower:$PATH
+PATH=$build_dir/node_modules/bower/bin:$PATH
 
 if [ "$GIT_SSH_KEY" != "" ]; then
   status "Detected SSH key for git.  launching ssh-agent and loading key"
