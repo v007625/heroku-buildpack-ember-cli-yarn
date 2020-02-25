@@ -250,12 +250,12 @@ if [[ -f "$build_dir/.npmrc" ]]; then
   yarn install --silent --userconfig --no-optional $build_dir/.npmrc 2>&1 | indent
 else
   status "no .npmrc"
-  http_proxy= yarn install --silent --no-optional 2>&1 | indent
+  yarn install --silent --no-optional 2>&1 | indent
 fi
 
 if [[ -f "$build_dir/bower.json" ]]; then
   status "bower.json exists"
-  bower install --quiet | indent
+  bower install --quiet 2>&1 | indent
 fi
 
 # Add the project's and ember-cli's dependencies' binaries to the PATH
