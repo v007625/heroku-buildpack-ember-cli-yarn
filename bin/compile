@@ -216,8 +216,9 @@ else
 fi
 
 yarn global bin
-yarn global dir
+yarn_executable_directory = yarn global bin
 
+PATH=$yarn_executable_directory:$PATH
 PATH=$build_dir/node_modules/bower/bin/bower:$PATH
 
 if [ "$GIT_SSH_KEY" != "" ]; then
@@ -239,7 +240,7 @@ fi
 
 if [[ -f "$build_dir/bower.json" ]]; then
   status "Pruning cached bower dependencies not specified in bower.json"
-  $build_dir/node_modules/bower/bin/bower prune 2>&1 | indent
+  bower prune 2>&1 | indent
 fi
 
 status "Installing dependencies"
@@ -254,7 +255,7 @@ fi
 
 if [[ -f "$build_dir/bower.json" ]]; then
   status "bower.json exists"
-  $build_dir/node_modules/bower/bin/bower install --quiet | indent
+  bower install --quiet | indent
 fi
 
 # Add the project's and ember-cli's dependencies' binaries to the PATH
