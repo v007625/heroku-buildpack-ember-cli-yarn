@@ -215,7 +215,8 @@ else
   fi
 fi
 
-ls -la $cache_dir/node_modules
+yarn global bin
+yarn global dir
 
 PATH=$build_dir/node_modules/bower/bin/bower:$PATH
 
