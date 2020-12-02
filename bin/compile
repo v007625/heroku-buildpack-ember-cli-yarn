@@ -115,22 +115,14 @@ PATH=$build_dir/vendor/node/bin:$PATH
 PATH=$build_dir/vendor/yarn/bin:$PATH
 
 status "Downloading and installing nginx"
-if [[ -n ${AWS_MIRROR:-} ]]; then
-  nginx_url="${AWS_MIRROR}/devmynd-github/heroku-nginx-1.6.0.tar.gz"
-
-  if [[ -n ${NO_PROXY:-} ]]; then
-    echo 'no_proxy'
-    echo $nginx_url
-    http_proxy= https_proxy= curl ${CURL_OPT} $nginx_url -o - | tar xzf - -C $build_dir/vendor
-  else
-    curl ${CURL_OPT} $nginx_url -s -o - | tar xzf - -C $build_dir/vendor
-  fi
-else
-  nginx_url=https://s3.amazonaws.com/devmynd-github/heroku-nginx-1.6.0.tar.gz
-
-  curl ${CURL_OPT} $nginx_url -s -o - | tar xzf - -C $build_dir/vendor
-fi
-
+nginx_version=${NGINX_VER:-1.19.5}
+nginx_url="http://nginx.org/download/nginx-$nginx_version.tar.gz"
+curl $nginx_url -s -o - | tar xzf - -C $build_dir/vendor
+mkdir $build_dir/vendor/nginx
+cd $build_dir/vendor/nginx-$nginx_version
+./configure --with-pcre=$build_dir/vendor/pcre-${pcre_version} --with-pcre-opt="--prefix=$build_dir/vendor/pcre" --with-http_ssl_module --prefix=$build_dir/vendor/nginx 2>&1 | indent
+make install  2>&1 | indent
+cd $build_dir
 
 status "Adding boot script"
 cp $bp_dir/bin/boot.sh $build_dir
