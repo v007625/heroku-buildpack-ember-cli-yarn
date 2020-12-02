@@ -9,6 +9,4 @@ touch $HOME/logs/nginx/access.log $HOME/logs/nginx/error.log
 (tail -f -n 0 $HOME/logs/nginx/*.log &)
 
 echo "load nginx conf"
-exec $HOME/vendor/nginx/sbin/nginx -p $HOME -c $HOME/config/nginx.conf
-
-cat $HOME/logs/nginx/error.log
+exec $HOME/vendor/nginx/sbin/nginx
