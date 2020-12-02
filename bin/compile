@@ -114,6 +114,11 @@ chmod +x $build_dir/vendor/yarn/bin/*
 PATH=$build_dir/vendor/node/bin:$PATH
 PATH=$build_dir/vendor/yarn/bin:$PATH
 
+status "Downloading and installing pcre"
+pcre_version=${PCRE_VER:-8.36}
+curl ftp://ftp.csx.cam.ac.uk/pub/software/programming/pcre/pcre-$pcre_version.tar.gz | tar xzf - -C $build_dir/vendor
+mkdir $build_dir/vendor/pcre
+
 status "Downloading and installing nginx"
 nginx_version=${NGINX_VER:-1.19.5}
 nginx_url="http://nginx.org/download/nginx-$nginx_version.tar.gz"
