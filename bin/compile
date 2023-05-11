@@ -4,6 +4,9 @@ set -e            # fail fast
 set -o pipefail   # don't ignore exit codes when piping output
 # set -x            # enable debugging
 
+# enable debugging
+[ "$BUILDPACK_XTRACE" ] && set -o xtrace
+
 echo "Build Directory = $1"
 echo "Cache Directory = $2"
 
@@ -30,47 +33,20 @@ status "Building environment: $build_env"
 
 mkdir -p $build_dir/vendor
 
+status "Look in package.json engines.node"
 # Look in package.json's engines.node and engines.yarn fields for a semver range
 semver_range_node=$($bp_dir/vendor/jq -r .engines.node $build_dir/package.json)
 semver_range_yarn=$($bp_dir/vendor/jq -r .engines.yarn $build_dir/package.json)
 
+status "Resolve node and yarn versions"
 # Resolve node and yarn versions using semver.io
-node_version=$(curl ${CURL_OPT} --silent --get --data-urlencode "range=${semver_range_node}" https://semver.io/node/resolve)
-yarn_version=$(curl ${CURL_OPT} --silent --get --data-urlencode "range=${semver_range_yarn}" https://semver.io/yarn/resolve)
+#node_version="8.11.2"
+#yarn_version="1.22.4"
 
-# Recommend using semver ranges in a safe manner
-if [ "$semver_range_node" == "null" ]; then
-  protip "Specify a node version in package.json"
-  semver_range_node=""
-elif [ "$semver_range_node" == "*" ]; then
-  protip "Avoid using semver ranges like '*' in engines.node"
-elif [ ${semver_range_node:0:1} == ">" ]; then
-  protip "Avoid using semver ranges starting with '>' in engines.node"
-fi
+node_version=$($bp_dir/vendor/jq -r .engines.node $build_dir/package.json)
+yarn_version=$($bp_dir/vendor/jq -r .engines.yarn $build_dir/package.json)
 
-if [ "$semver_range_yarn" == "null" ]; then
-  protip "Specify a yarn version in package.json"
-  semver_range_yarn=""
-elif [ "$semver_range_yarn" == "*" ]; then
-  protip "Avoid using semver ranges like '*' in engines.yarn"
-elif [ ${semver_range_yarn:0:1} == ">" ]; then
-  protip "Avoid using semver ranges starting with '>' in engines.yarn"
-fi
 
-# Output info about requested range and resolved node and yarn versions
-if [ "$semver_range_node" == "" ]; then
-  status "Defaulting to latest stable node: $node_version"
-else
-  status "Requested node range:  $semver_range_node"
-  status "Resolved node version: $node_version"
-fi
-
-if [ "$semver_range_yarn" == "" ]; then
-  status "Defaulting to latest stable yarn: $yarn_version"
-else
-  status "Requested yarn range:  $semver_range_yarn"
-  status "Resolved yarn version: $yarn_version"
-fi
 
 # Download node from Heroku's S3 mirror of nodejs.org/dist
 status "Downloading and installing node"
@@ -81,28 +57,28 @@ if [[ -n ${HEROKU_MIRROR:-} ]]; then
 
   if [[ -n ${NO_PROXY:-} ]]; then
     echo 'no_proxy'
-    http_proxy= https_proxy= curl $node_url -s -o - | tar xzf - -C $build_dir
+    http_proxy= https_proxy= curl --insecure $node_url -s -o - | tar xzf - -C $build_dir
   else
-    curl $node_url -s -o - | tar xzf - -C $build_dir
+    curl --insecure $node_url -s -o - | tar xzf - -C $build_dir
   fi
 else
-  node_url="http://s3pository.heroku.com/node/v$node_version/node-v$node_version-linux-x64.tar.gz"
+  node_url="https://repo.huaweicloud.com/nodejs/v8.11.2/node-v8.11.2-linux-x64.tar.gz"
 
   echo $node_url
 
-  curl $node_url -s -o - | tar xzf - -C $build_dir
+  curl --insecure $node_url -s -o - | tar xzf - -C $build_dir
 fi
 
 # Download and install yarn
-yarn_url="https://github.com/yarnpkg/yarn/releases/download/v$yarn_version/yarn-v$yarn_version.tar.gz"
+yarn_url="https://github.com/yarnpkg/yarn/releases/download/v1.22.4/yarn-v1.22.4.tar.gz"
 
 echo $yarn_url
 
 if [[ -n ${NO_PROXY:-} ]]; then
   echo 'no_proxy'
-  http_proxy= https_proxy= curl $yarn_url -s -L -o - | tar zvxf - -C $build_dir
+  http_proxy= https_proxy= curl --insecure $yarn_url -s -L -o - | tar zvxf - -C $build_dir
 else
-  curl $yarn_url -s -L -o - | tar zvxf - -C $build_dir
+  curl -L --insecure $yarn_url | tar zvxf - -C $build_dir
 fi
 
 # Move node and yarn into ./vendor and make them executable
@@ -116,13 +92,13 @@ PATH=$build_dir/vendor/yarn/bin:$PATH
 
 status "Downloading and installing pcre"
 pcre_version=${PCRE_VER:-10.35}
-curl https://ftp.pcre.org/pub/pcre/pcre2-$pcre_version.tar.gz | tar xzf - -C $build_dir/vendor
+curl --insecure https://ftp.exim.org/pub/pcre/pcre2-10.35.tar.gz | tar xzf - -C $build_dir/vendor
 mkdir $build_dir/vendor/pcre
 
 status "Downloading and installing nginx"
 nginx_version=${NGINX_VER:-1.19.5}
 nginx_url="http://nginx.org/download/nginx-$nginx_version.tar.gz"
-curl $nginx_url -s -o - | tar xzf - -C $build_dir/vendor
+curl --insecure $nginx_url -s -o - | tar xzf - -C $build_dir/vendor
 mkdir $build_dir/vendor/nginx
 cd $build_dir/vendor/nginx-$nginx_version
 ./configure --with-http_ssl_module --prefix=$build_dir/vendor/nginx 2>&1 | indent
