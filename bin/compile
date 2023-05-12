@@ -62,7 +62,7 @@ if [[ -n ${HEROKU_MIRROR:-} ]]; then
     curl --insecure $node_url -s -o - | tar xzf - -C $build_dir
   fi
 else
-  node_url="https://repo.huaweicloud.com/nodejs/v8.11.2/node-v8.11.2-linux-x64.tar.gz"
+  node_url="https://repo.huaweicloud.com/nodejs/v8.11.2/node-v$node_version-linux-x64.tar.gz"
 
   echo $node_url
 
@@ -70,7 +70,7 @@ else
 fi
 
 # Download and install yarn
-yarn_url="https://github.com/yarnpkg/yarn/releases/download/v1.13.0/yarn-v1.13.0.tar.gz"
+yarn_url="https://github.com/yarnpkg/yarn/releases/download/v$yarn_version/yarn-v$yarn_version.tar.gz"
 
 echo $yarn_url
 
